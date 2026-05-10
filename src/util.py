@@ -7,37 +7,26 @@ from configparser import ConfigParser
 
 # test the connection to pgsql
 def pg_test(dbsetting):
-    """ Connect to the PostgreSQL database server """
+    """Connect to the PostgreSQL database server and return True/False."""
+    conn = None
     try:
-        # read connection parameters
         params = dbsetting
-
         print("testing database connection ")
 
-        # connect to the PostgreSQL server
         conn = psql.connect(**params)
-
-        # create a cursor
         cur = conn.cursor()
-
-        # execute a statement
         cur.execute("select 1")
-        # get the result
-        res = cur.fetchall()
-
-
-        # close the communication with the PostgreSQL
+        cur.fetchall()
         cur.close()
 
         print("connection ok ")
+        return True
     except (Exception, psql.DatabaseError) as error:
         print(error)
-
         return False
     finally:
         if conn is not None:
             conn.close()
-            return True
 
 
 # read the configuration file

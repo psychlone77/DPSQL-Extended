@@ -28,6 +28,8 @@ def ReadInput():
         value = float(elements[0])
 
         for element in elements[1:]:
+            if element is None:
+                continue
             user_id = element
 
             if user_id in id_dict.keys():

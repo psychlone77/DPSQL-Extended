@@ -214,6 +214,29 @@ def get_primary_keys(pks, relations):
     return res
 
 
+def _split_pk_columns(pk_text):
+    """Return individual PK column names from strings like 'id' or 'id1, id2'."""
+    return [c.strip().strip('\"') for c in pk_text.split(",") if c.strip()]
+
+
+def _build_tuple_id_expr(alias, columns, id_label):
+    """
+    Build concat('id0', alias.col1, ':', alias.col2, ...) for tuple identity.
+    This fixes composite primary keys that were previously treated as one
+    quoted column name, e.g. lineitem."l_orderkey, l_linenumber".
+    """
+    args = [ast.String(sval=id_label)]
+    for i, col in enumerate(columns):
+        if i > 0:
+            args.append(ast.String(sval=":"))
+        args.append(
+            ast.ColumnRef(
+                fields=(ast.String(sval=alias), ast.String(sval=col))
+            )
+        )
+    return ast.FuncCall(funcname=(ast.String(sval="concat"),), args=tuple(args))
+
+
 class userAdder(visitors.Visitor):
 
     def __init__(self, keys):
@@ -233,21 +256,21 @@ class userAdder(visitors.Visitor):
         renaming = renaming.rename_dict
         # add all the private keys into the select statement
         for r in self.keys:
-            table_attribute = r.split(".")
-            for name in renaming[table_attribute[0]]:
+            table_attribute = r.split(".", 1)
+            if len(table_attribute) != 2:
+                continue
+            table_name, pk_text = table_attribute
+            pk_columns = _split_pk_columns(pk_text)
+            if table_name not in renaming:
+                continue
+            for name in renaming[table_name]:
                 rename = "id" + str(idx)
-                table = ast.String(sval=rename)
-                attri = ast.ColumnRef(fields=(name, table_attribute[1]))
                 node.targetList += (
                     ast.ResTarget(
-                        val=ast.FuncCall(
-                            funcname=(ast.String(sval="concat"),), args=(table, attri)
-                        ),
+                        val=_build_tuple_id_expr(name, pk_columns, rename),
                         name=rename,
                     ),
                 )
-                # node.targetList += (ast.ResTarget(val=ast.ColumnRef(fields=(name,
-                #                                                             table_attribute[1])), name=rename),)
                 idx += 1
 
 
@@ -535,6 +558,8 @@ class get_rename(visitors.Visitor):
         self.rename_dict = {}
 
     def visit_SelectStmt(self, ancestors, node):
+        if not node.fromClause:
+            return
         for item in node.fromClause:
             if isinstance(item, ast.RangeVar):
                 if item.relname not in self.rename_dict.keys():
@@ -579,7 +604,7 @@ class get_subquery(visitors.Visitor):
         self.node = None
 
     def visit_SelectStmt(self, ancestors, node):
-        if isinstance(node.fromClause[0], ast.RangeSubselect):
+        if node.fromClause and isinstance(node.fromClause[0], ast.RangeSubselect):
             self.node = node.fromClause[0].subquery
 
 
@@ -598,6 +623,8 @@ class check_type(visitors.Visitor):
         self._relation = relations
 
     def visit_SelectStmt(self, ancestors, node):
+        if not node.fromClause:
+            return
         if isinstance(node.fromClause[0], ast.RangeSubselect):
             self.subquery = True
             for item in node.targetList:

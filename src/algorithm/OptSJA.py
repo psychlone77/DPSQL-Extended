@@ -47,6 +47,8 @@ def ReadInput():
         aggregation_value = float(elements[0])
         # For each entity contribution to that join result
         for element in elements[1:]:
+            if element is None:
+                continue
             # element = int(element)
             # Re-order the IDs
             if element in id_dic.keys():

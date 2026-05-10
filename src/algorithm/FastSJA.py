@@ -70,6 +70,8 @@ def ReadInput():
     for line in input_result:
         ids = line[1:]
         for id in ids:
+            if id is None:
+                continue
             temp_id = id
             if temp_id not in reorder_ids:
                 reorder_ids[temp_id] = num_id
@@ -84,6 +86,8 @@ def ReadInput():
         #print(aggregation_value)
         # For each entity contribution to that join result
         for element in elements[1:]:
+            if element is None:
+                continue
             element = reorder_ids[element]
             if element in id_dic.keys():
                 element = id_dic[element]

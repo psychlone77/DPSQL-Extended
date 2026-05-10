@@ -21,6 +21,8 @@ def ReadInput():
 
         tuple_value = float(elements[0])
         user_id = elements[1]
+        if user_id is None:
+            continue
 
         if user_id in id_dict.keys():
             user_id = id_dict[user_id]
