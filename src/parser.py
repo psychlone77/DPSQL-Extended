@@ -94,8 +94,17 @@ class ImplicitJoin(visitors.Visitor):
     def visit_JoinExpr(self, ancestors, node):
         """
         we keep all the table name including renaming, and all the predicate
-        in the join condition
+        in the join condition.
+
+        Only INNER JOINs are decomposed into comma-separated FROM + WHERE.
+        LEFT/RIGHT/FULL JOINs are preserved as-is in the FROM clause because
+        moving their ON conditions to WHERE would change join semantics.
         """
+        # Non-INNER joins (e.g. LEFT JOINs from recursive CTE unrolling)
+        # must be preserved as-is — do not decompose them
+        if node.jointype != enums.JoinType.JOIN_INNER:
+            return
+
         idx = 0
         # left is table name
         if isinstance(node.larg, ast.RangeVar):
@@ -114,12 +123,8 @@ class ImplicitJoin(visitors.Visitor):
             idx += 1
         # append join condition
         self.qual.append(node.quals)
-        # delete the visited join node
-        # we only consider inner join now (because parser will parse into this type)
-        if node.jointype == enums.JoinType.JOIN_INNER:
-            return visitors.Delete
-        else:
-            raise Exception
+        # delete the visited inner join node
+        return visitors.Delete
 
     def visit_SelectStmt(self, ancestors, node):
         """
@@ -534,19 +539,36 @@ class get_rename(visitors.Visitor):
     def __init__(self):
         self.rename_dict = {}
 
+    def _add_rangevar(self, item):
+        """Register a RangeVar's table name and alias in rename_dict."""
+        if item.relname not in self.rename_dict.keys():
+            if item.alias is None:
+                self.rename_dict[item.relname] = [item.relname]
+            else:
+                self.rename_dict[item.relname] = [item.alias.aliasname]
+        else:
+            if item.alias is None:
+                self.rename_dict[item.relname].append(item.relname)
+            else:
+                self.rename_dict[item.relname].append(item.alias.aliasname)
+
+    def _collect_from_join(self, join_expr):
+        """Recursively traverse a JoinExpr tree to find all RangeVar tables."""
+        if isinstance(join_expr.larg, ast.RangeVar):
+            self._add_rangevar(join_expr.larg)
+        elif isinstance(join_expr.larg, ast.JoinExpr):
+            self._collect_from_join(join_expr.larg)
+        if isinstance(join_expr.rarg, ast.RangeVar):
+            self._add_rangevar(join_expr.rarg)
+        elif isinstance(join_expr.rarg, ast.JoinExpr):
+            self._collect_from_join(join_expr.rarg)
+
     def visit_SelectStmt(self, ancestors, node):
         for item in node.fromClause:
             if isinstance(item, ast.RangeVar):
-                if item.relname not in self.rename_dict.keys():
-                    if item.alias is None:
-                        self.rename_dict[item.relname] = [item.relname]
-                    else:
-                        self.rename_dict[item.relname] = [item.alias.aliasname]
-                else:
-                    if item.alias is None:
-                        self.rename_dict[item.relname].append(item.relname)
-                    else:
-                        self.rename_dict[item.relname].append(item.alias.aliasname)
+                self._add_rangevar(item)
+            elif isinstance(item, ast.JoinExpr):
+                self._collect_from_join(item)
 
 
 class group_by(visitors.Visitor):

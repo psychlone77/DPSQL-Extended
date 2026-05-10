@@ -21,6 +21,7 @@ from src.parser import (
     group_by,
     apply_unnest_subqueries,
 )
+from src.recursive_cte import apply_recursive_unroll
 from src.util import pg_exec
 
 
@@ -57,6 +58,8 @@ class FastSJA(algorithm):
         selectstmt = root[0].stmt
         if not isinstance(selectstmt, ast.SelectStmt):
             raise Exception
+        k = int(self.parameters.get("recursive_depth", 3))
+        selectstmt = apply_recursive_unroll(selectstmt, k=k)
         apply_unnest_subqueries(selectstmt)
         ImplicitJoin()(selectstmt)
         add_table_name(selectstmt, self.schema)(selectstmt)
@@ -98,6 +101,8 @@ class MultiSJF(algorithm):
         selectstmt = root[0].stmt
         if not isinstance(selectstmt, ast.SelectStmt):
             raise Exception
+        k = int(self.parameters.get("recursive_depth", 3))
+        selectstmt = apply_recursive_unroll(selectstmt, k=k)
         apply_unnest_subqueries(selectstmt)
         ImplicitJoin()(selectstmt)
         add_table_name(selectstmt, self.schema)(selectstmt)
@@ -144,6 +149,8 @@ class MaxSJA1(algorithm):
         selectstmt = root[0].stmt
         if not isinstance(selectstmt, ast.SelectStmt):
             raise Exception
+        k = int(self.parameters.get("recursive_depth", 3))
+        selectstmt = apply_recursive_unroll(selectstmt, k=k)
         apply_unnest_subqueries(selectstmt)
         ImplicitJoin()(selectstmt)
         add_table_name(selectstmt, self.schema)(selectstmt)
@@ -214,6 +221,8 @@ class MultiMax(algorithm):
         selectstmt = root[0].stmt
         if not isinstance(selectstmt, ast.SelectStmt):
             raise Exception
+        k = int(self.parameters.get("recursive_depth", 3))
+        selectstmt = apply_recursive_unroll(selectstmt, k=k)
         apply_unnest_subqueries(selectstmt)
         ImplicitJoin()(selectstmt)
         add_table_name(selectstmt, self.schema)(selectstmt)

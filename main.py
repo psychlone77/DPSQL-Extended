@@ -5,6 +5,7 @@ from pathlib import Path
 
 from src.util import config, pg_single, pg_test, get_schema
 from src.parser import check_type
+from src.recursive_cte import apply_recursive_unroll
 from pglast import parser, prettify
 from pglast import ast
 import src.process
@@ -54,6 +55,9 @@ def main():
     selectstmt = root[0].stmt
     if not isinstance(selectstmt, ast.SelectStmt):
         raise Exception
+    # Unroll recursive CTEs before type checking
+    recursive_depth = int(global_para.get("recursive_depth", "3"))
+    selectstmt = apply_recursive_unroll(selectstmt, k=recursive_depth)
     check = check_type(private_relations)
     check(selectstmt)
 
