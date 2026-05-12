@@ -70,7 +70,11 @@ class FastSJA(algorithm):
         selectstmt = root[0].stmt
         if not isinstance(selectstmt, ast.SelectStmt):
             raise Exception
+        print("Original Query:")
+        print(stream.RawStream()(selectstmt))
         apply_unnest_subqueries(selectstmt)
+        print("After unnesting subqueries:")
+        print(stream.RawStream()(selectstmt))
         ImplicitJoin()(selectstmt)
         add_table_name(selectstmt, self.schema)(selectstmt)
         aggregationVisit()(selectstmt)

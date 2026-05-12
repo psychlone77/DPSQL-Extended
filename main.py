@@ -151,8 +151,6 @@ def main():
     start = time.time()
 
     process.rewrite(query, private_relations)
-    output_file.write("rewritten Query:" + "\n")
-    output_file.write(prettify(process.rewrite_query))
     process.get_input_result()
 
     end1 = time.time()
@@ -163,9 +161,9 @@ def main():
     if opt.debug:
         output_file.write("original Query:" + "\n")
         output_file.write(prettify(query))
-        output_file.write("\n" + "rewritten Query:" + "\n")
+        output_file.write("\n\n" + "rewritten Query:" + "\n")
         output_file.write(prettify(process.rewrite_query))
-        output_file.write("\n" + "true result:")
+        output_file.write("\n\n" + "true result:")
         output_file.write(str(process.true_result))
         if process.error is not None:
             output_file.write("\n" + "error:")
@@ -180,6 +178,8 @@ def main():
     output_file.write(str(end1 - start))
     output_file.write("\n" + "process time:")
     output_file.write(str(end2 - end1))
+
+    print("Processing completed. Check output file for results.")
 
 
 # Press the green button in the gutter to run the script.
