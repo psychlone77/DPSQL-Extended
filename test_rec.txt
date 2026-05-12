@@ -1,0 +1,12 @@
+WITH RECURSIVE order_path AS (
+    SELECT o_orderkey, o_custkey, 1 AS depth
+    FROM orders
+    WHERE o_orderkey > 1 AND o_orderkey < 500
+    
+    UNION ALL
+    
+    SELECT orders.o_orderkey, orders.o_custkey, r.depth + 1
+    FROM orders, order_path r
+    WHERE orders.o_custkey = r.o_custkey
+)
+SELECT COUNT(*) FROM order_path;

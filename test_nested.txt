@@ -3,5 +3,5 @@ FROM lineitem
 WHERE l_orderkey IN (
     SELECT o_orderkey
     FROM orders
-    WHERE o_custkey = 123
+    WHERE o_custkey > 1 AND o_custkey < 200
 );
