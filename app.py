@@ -6,6 +6,7 @@ import ast
 import pandas as pd
 import matplotlib.pyplot as plt
 import sys
+import re
 
 st.set_page_config(layout="wide", page_title="DOP-SQL Interface")
 
@@ -147,17 +148,31 @@ if st.button("Execute DP-SQL Query", type="primary"):
 
             true_res_str = ""
             noise_res_str = ""
+            rewrite_time_str = "N/A"
+            process_time_str = "N/A"
 
             for line in out_lines:
                 if line.startswith("true result:"):
                     true_res_str = line.split("true result:")[1].strip()
                 if line.startswith("noise result:"):
                     noise_res_str = line.split("noise result:")[1].strip()
+                if line.startswith("rewrite time:"):
+                    rewrite_time_str = line.split("rewrite time:")[1].strip()
+                if line.startswith("process time:"):
+                    process_time_str = line.split("process time:")[1].strip()
 
             # --- Visualization (Mirroring Fig 2c of the paper) ---
             st.subheader(f"3. Results Overview (Mechanism: {q_type})")
 
             try:
+                # Clean up numpy specific formats before parsing
+                if true_res_str:
+                    true_res_str = re.sub(r"np\.float64\((.*?)\)", r"\1", true_res_str)
+                if noise_res_str:
+                    noise_res_str = re.sub(
+                        r"np\.float64\((.*?)\)", r"\1", noise_res_str
+                    )
+
                 # Try to parse python lists if output is group-by (e.g. [(val1, grp1), (val2, grp2)])
                 true_vals = ast.literal_eval(true_res_str)
                 noise_vals = ast.literal_eval(noise_res_str)
@@ -175,16 +190,28 @@ if st.button("Execute DP-SQL Query", type="primary"):
                             "Privatized Result": [float(x[0]) for x in noise_vals],
                         }
                     ).set_index("Group")
-
+                    st.dataframe(df)
                     st.bar_chart(df)
                 else:
                     # Single Aggregate
-                    st.metric(
-                        "Privatized Output",
-                        f"{float(noise_vals):,.4f}",
-                        delta=f"True: {float(true_vals):,.4f}",
-                        delta_color="off",
+                    true_val_f = float(true_vals)
+                    noise_val_f = float(noise_vals)
+                    rel_error = (
+                        abs(true_val_f - noise_val_f) / abs(true_val_f)
+                        if true_val_f != 0
+                        else 0
                     )
+
+                    col_metric1, col_metric2 = st.columns(2)
+                    with col_metric1:
+                        st.metric(
+                            "Privatized Output",
+                            f"{noise_val_f:,.4f}",
+                            delta=f"True: {true_val_f:,.4f}",
+                            delta_color="off",
+                        )
+                    with col_metric2:
+                        st.metric("Relative Error", f"{rel_error:.4%}")
 
             except Exception as e:
                 # Fallback if output parsing fails (shows raw logs)
@@ -192,6 +219,28 @@ if st.button("Execute DP-SQL Query", type="primary"):
                     "Could not parse result for Bar Chart visualization. Displaying raw output."
                 )
                 st.text(output_content)
+
+            st.divider()
+            t_col1, t_col2 = st.columns(2)
+            try:
+                t_col1.metric(
+                    "Rewrite Time",
+                    (
+                        f"{float(rewrite_time_str):.4f} s"
+                        if rewrite_time_str != "N/A"
+                        else "N/A"
+                    ),
+                )
+                t_col2.metric(
+                    "Processing Time",
+                    (
+                        f"{float(process_time_str):.4f} s"
+                        if process_time_str != "N/A"
+                        else "N/A"
+                    ),
+                )
+            except Exception:
+                pass
 
             with st.expander("View Debug Logs / Rewritten Query"):
                 st.code(output_content)
